@@ -9,6 +9,7 @@ const User = require('./models/User');
 const Otp = require('./models/Otp');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const trainingRoutes = require("./routes/trainingRoutes");
 
 const app = express();
 app.use(cors());
@@ -16,7 +17,7 @@ app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
-
+app.use("/api/trainings", trainingRoutes);
 // Khởi động server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
