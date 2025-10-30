@@ -10,6 +10,31 @@ exports.getAllTrainings = async (req, res) => {
     res.status(500).json({ message: "Lỗi máy chủ khi lấy danh sách bài tập", error: err.message });
   }
 };
+// Lấy danh sách bài tập theo goal
+exports.getTrainingByGoal = async (req, res) => {
+  try {
+    const { goal } = req.params;
+    if (!goal) {
+      return res.status(400).json({ message: "Thiếu tham số goal" });
+    }
+
+    const trainings = await Training.find({ goal });
+
+    if (!trainings || trainings.length === 0) {
+      return res.status(404).json({ message: `Không tìm thấy bài tập cho mục tiêu "${goal}"` });
+    }
+
+    return res.status(200).json({
+      message: `Danh sách bài tập cho mục tiêu "${goal}"`,
+      count: trainings.length,
+      data: trainings
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy bài tập theo goal:", error);
+    return res.status(500).json({ message: "Lỗi máy chủ khi lấy bài tập theo goal" });
+  }
+};
+
 
 // 📍 Lấy bài tập theo cấp độ (chống lỗi dấu tiếng Việt)
 const removeVietnameseTones = (str) => {

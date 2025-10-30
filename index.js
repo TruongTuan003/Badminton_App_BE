@@ -25,7 +25,7 @@ app.use("/api/trainings", trainingRoutes);
 app.use("/api/training-logs", trainingLogRoutes);
 app.use("/api/schedules", scheduleRoutes);
 app.use("/api/meals", mealRoutes);
-app.use("/api/meal-schedules", mealScheduleRoutes);
+app.use("/api/meal-schedules", mealScheduleRoutes); 
 // Khởi động server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

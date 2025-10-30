@@ -6,6 +6,7 @@ const {
   getAllTrainings,
   getByLevel,
   getTrainingById,
+  getTrainingByGoal,
   createTraining,
   updateTraining,
   deleteTraining
@@ -15,6 +16,7 @@ const {
 router.get("/", getAllTrainings);
 router.get("/level/:level", getByLevel);
 router.get("/:id", getTrainingById);
+router.get("/goal/:goal", getTrainingByGoal);
 
 // Chỉ admin có thể thêm / sửa / xóa
 router.post("/", authenticateToken, createTraining);
