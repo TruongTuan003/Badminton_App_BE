@@ -12,6 +12,7 @@ const userRoutes = require('./routes/userRoutes');
 const trainingRoutes = require("./routes/trainingRoutes");
 const trainingLogRoutes = require("./routes/trainingLogRoutes");
 const scheduleRoutes = require("./routes/scheduleRoutes");
+const mealRoutes = require("./routes/mealRoutes");
 
 const app = express();
 app.use(cors());
@@ -22,6 +23,7 @@ app.use('/api/user', userRoutes);
 app.use("/api/trainings", trainingRoutes);
 app.use("/api/training-logs", trainingLogRoutes);
 app.use("/api/schedules", scheduleRoutes);
+app.use("/api/meals", mealRoutes);
 // Khởi động server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
