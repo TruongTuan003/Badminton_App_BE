@@ -3,20 +3,29 @@ const ScheduleDetail = require("../models/ScheduleDetail");
 const Training = require("../models/Training");
 const User = require("../models/User");
 
-// 📍 Lấy danh sách lịch của user
+// 📍 Lấy toàn bộ lịch của user theo token
 exports.getUserSchedules = async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = req.user.sub; // 🟢 Lấy từ token
     const schedules = await Schedule.find({ userId }).sort({ date: -1 });
     res.json(schedules);
   } catch (err) {
+    console.error("getUserSchedules error:", err);
     res.status(500).json({ message: "Lỗi khi lấy danh sách lịch", error: err.message });
   }
 };
-// 📍 Lấy lịch theo ngày (theo user)
+
+// 📍 Lấy lịch theo ngày (dựa theo user đăng nhập)
 exports.getScheduleByDate = async (req, res) => {
   try {
-    const { userId, date } = req.params;
+    const userId = req.user.sub; // 🟢 Lấy từ token
+    const { date } = req.params;
+
+    if (!date) {
+      return res.status(400).json({ message: "Thiếu ngày cần tìm" });
+    }
+
+    console.log("🔍 getScheduleByDate =>", { userId, date });
 
     const schedule = await Schedule.findOne({ userId, date });
 
@@ -24,80 +33,64 @@ exports.getScheduleByDate = async (req, res) => {
       return res.status(404).json({ message: `Không có lịch nào cho ngày ${date}` });
     }
 
-    res.json(schedule);
+    // Lấy chi tiết kèm bài tập
+    const details = await ScheduleDetail.find({ scheduleId: schedule._id })
+      .populate("workoutId", "title level duration_minutes image_url goal");
+
+    res.json({ schedule, details });
   } catch (err) {
     console.error("getScheduleByDate error:", err);
     res.status(500).json({ message: "Lỗi máy chủ khi lấy lịch theo ngày" });
   }
 };
 
-
 // 📍 Tạo lịch mới (chỉ lưu ngày)
 exports.createSchedule = async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = req.user.sub; // 🟢 Tự động lấy user từ token
     const { date, note } = req.body;
 
     if (!date) {
       return res.status(400).json({ message: "Thiếu ngày lịch" });
     }
 
-    // Kiểm tra user tồn tại
     const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "Người dùng không tồn tại" });
-    }
+    if (!user) return res.status(404).json({ message: "Người dùng không tồn tại" });
 
-    // Kiểm tra trùng ngày
     const exist = await Schedule.findOne({ userId, date });
-    if (exist) {
-      return res.status(400).json({ message: "Ngày này đã có lịch" });
-    }
+    if (exist) return res.status(400).json({ message: "Ngày này đã có lịch" });
 
     const schedule = await Schedule.create({ userId, date, note });
     res.status(201).json({ message: "Tạo lịch thành công", schedule });
   } catch (err) {
+    console.error("createSchedule error:", err);
     res.status(400).json({ message: "Lỗi khi tạo lịch", error: err.message });
   }
 };
 
-// 📍 Thêm bài tập vào lịch (kiểm tra tồn tại)
+// 📍 Thêm bài tập vào lịch
 exports.addWorkoutToSchedule = async (req, res) => {
   try {
-    const { scheduleId, workoutId, time, note } = req.body;
+    const { id } = req.params; // scheduleId từ URL
+    const { workoutId, time, note } = req.body;
 
-    if (!scheduleId || !workoutId) {
-      return res.status(400).json({ message: "Thiếu thông tin lịch hoặc bài tập" });
-    }
+    if (!workoutId) return res.status(400).json({ message: "Thiếu workoutId" });
 
-    // ✅ Kiểm tra lịch tồn tại
-    const schedule = await Schedule.findById(scheduleId);
-    if (!schedule) {
-      return res.status(404).json({ message: "Không tìm thấy lịch" });
-    }
+    const schedule = await Schedule.findById(id);
+    if (!schedule) return res.status(404).json({ message: "Không tìm thấy lịch" });
 
-    // ✅ Kiểm tra bài tập tồn tại
     const workout = await Training.findById(workoutId);
-    if (!workout) {
-      return res.status(404).json({ message: "Không tìm thấy bài tập" });
-    }
+    if (!workout) return res.status(404).json({ message: "Không tìm thấy bài tập" });
 
-    // ✅ Kiểm tra trùng bài tập cùng giờ trong lịch
-    const duplicate = await ScheduleDetail.findOne({ scheduleId, workoutId, time });
-    if (duplicate) {
+    const duplicate = await ScheduleDetail.findOne({ scheduleId: id, workoutId, time });
+    if (duplicate)
       return res.status(400).json({ message: "Bài tập này đã có trong lịch ở cùng giờ" });
-    }
 
-    const detail = await ScheduleDetail.create({
-      scheduleId,
-      workoutId,
-      time,
-      note,
-    });
-
+    const detail = await ScheduleDetail.create({ scheduleId: id, workoutId, time, note });
     res.status(201).json({ message: "Đã thêm bài tập vào lịch", detail });
   } catch (err) {
-    res.status(400).json({ message: "Lỗi khi thêm bài tập vào lịch", error: err.message });
+    console.error("addWorkoutToSchedule error:", err);
+    res.status(400).json({ message: "Lỗi khi thêm bài tập", error: err.message });
   }
 };
 
@@ -107,82 +100,74 @@ exports.getScheduleDetails = async (req, res) => {
     const scheduleId = req.params.id;
 
     const schedule = await Schedule.findById(scheduleId);
-    if (!schedule) {
-      return res.status(404).json({ message: "Không tìm thấy lịch" });
-    }
+    if (!schedule) return res.status(404).json({ message: "Không tìm thấy lịch" });
 
     const details = await ScheduleDetail.find({ scheduleId })
       .populate("workoutId", "title level duration_minutes image_url goal");
 
     res.json({ schedule, details });
   } catch (err) {
+    console.error("getScheduleDetails error:", err);
     res.status(500).json({ message: "Lỗi khi lấy chi tiết lịch", error: err.message });
   }
 };
 
-// 📍 Cập nhật trạng thái bài tập trong lịch
+// 📍 Cập nhật trạng thái bài tập
 exports.updateScheduleDetailStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
 
     const validStatuses = ["pending", "done", "skipped"];
-    if (!validStatuses.includes(status)) {
+    if (!validStatuses.includes(status))
       return res.status(400).json({ message: "Trạng thái không hợp lệ" });
-    }
 
     const detail = await ScheduleDetail.findById(id);
-    if (!detail) {
-      return res.status(404).json({ message: "Không tìm thấy chi tiết lịch" });
-    }
+    if (!detail) return res.status(404).json({ message: "Không tìm thấy chi tiết lịch" });
 
     detail.status = status;
     await detail.save();
 
     res.json({ message: "Cập nhật trạng thái thành công", detail });
   } catch (err) {
+    console.error("updateScheduleDetailStatus error:", err);
     res.status(400).json({ message: "Lỗi khi cập nhật", error: err.message });
   }
 };
 
-// 📍 Xóa lịch (và toàn bộ chi tiết)
+// 📍 Xóa lịch
 exports.deleteSchedule = async (req, res) => {
   try {
     const { id } = req.params;
 
     const schedule = await Schedule.findById(id);
-    if (!schedule) {
-      return res.status(404).json({ message: "Không tìm thấy lịch cần xóa" });
-    }
+    if (!schedule) return res.status(404).json({ message: "Không tìm thấy lịch cần xóa" });
 
     await ScheduleDetail.deleteMany({ scheduleId: id });
     await Schedule.findByIdAndDelete(id);
 
     res.json({ message: "Đã xóa lịch và chi tiết liên quan" });
   } catch (err) {
+    console.error("deleteSchedule error:", err);
     res.status(500).json({ message: "Lỗi khi xóa lịch", error: err.message });
   }
 };
-// 📍 Xóa 1 bài tập khỏi lịch trình
+
+// 📍 Xóa 1 bài tập khỏi lịch
 exports.removeTrainingFromSchedule = async (req, res) => {
   try {
-    const { id, trainingId } = req.params; // id = scheduleId, trainingId = workoutId
+    const { id, trainingId } = req.params;
 
-    // Kiểm tra xem lịch có tồn tại không
     const schedule = await Schedule.findById(id);
-    if (!schedule) {
-      return res.status(404).json({ message: "Không tìm thấy lịch trình" });
-    }
+    if (!schedule) return res.status(404).json({ message: "Không tìm thấy lịch trình" });
 
-    // Tìm và xóa bài tập trong ScheduleDetail
     const deleted = await ScheduleDetail.findOneAndDelete({
       scheduleId: id,
-      workoutId: trainingId
+      workoutId: trainingId,
     });
 
-    if (!deleted) {
+    if (!deleted)
       return res.status(404).json({ message: "Không tìm thấy bài tập trong lịch" });
-    }
 
     res.json({ message: "Đã xóa bài tập khỏi lịch trình" });
   } catch (err) {
@@ -190,4 +175,3 @@ exports.removeTrainingFromSchedule = async (req, res) => {
     res.status(500).json({ message: "Lỗi máy chủ khi xóa bài tập" });
   }
 };
-
