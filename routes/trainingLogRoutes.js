@@ -6,7 +6,7 @@ const {
   getLogsByUser,
   updateLog,
   deleteLog
-} = require("../controllers/trainingLogController");
+} = require("../controllers/TrainingLogController");
 
 router.use(authenticateToken);
 
