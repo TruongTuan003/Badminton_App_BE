@@ -1,4 +1,4 @@
-const MealSchedule = require("../models/mealSchedule");
+const MealSchedule = require("../models/MealSchedule");
 const Meal = require("../models/Meal");
 
 // 📍 Lấy danh sách bữa ăn theo ngày
