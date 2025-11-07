@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 
 const mealScheduleSchema = new mongoose.Schema({
@@ -14,5 +13,6 @@ const mealScheduleSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model("MealSchedule", mealScheduleSchema);
+// Kiểm tra xem model đã được compile chưa để tránh lỗi overwrite
+module.exports = mongoose.models.MealSchedule || mongoose.model("MealSchedule", mealScheduleSchema);
 
