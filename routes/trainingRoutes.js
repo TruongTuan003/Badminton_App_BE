@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const { authenticateToken } = require("../middleware/authMiddleware");
+const uploadFiles = require("../middleware/upload");
 const {
   getAllTrainings,
   getByLevel,
@@ -19,8 +20,8 @@ router.get("/:id", getTrainingById);
 router.get("/goal/:goal", getTrainingByGoal);
 
 // Chỉ admin có thể thêm / sửa / xóa
-router.post("/", authenticateToken, createTraining);
-router.put("/:id", authenticateToken, updateTraining);
+router.post("/", authenticateToken, uploadFiles, createTraining);
+router.put("/:id", authenticateToken, uploadFiles, updateTraining);
 router.delete("/:id", authenticateToken, deleteTraining);
 
 module.exports = router;
