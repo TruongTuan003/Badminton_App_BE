@@ -22,8 +22,8 @@ router.get('/system-statistics', authenticateToken, userController.getSystemStat
 // PUT /api/user/:id - Cập nhật thông tin user (chỉ dành cho admin)
 router.put('/:id', authenticateToken, userController.updateUser);
 
-// DELETE /api/user/:id - Xóa user (chỉ dành cho admin)
-router.delete('/:id', authenticateToken, userController.deleteUser);
+// PUT /api/user/:id/lock - Khóa/Mở khóa user (chỉ dành cho admin)
+router.put('/:id/lock', authenticateToken, userController.lockUser);
 
 // PUT /api/user/profile - Cập nhật thông tin profile của user
 router.put('/profile', authenticateToken, userController.updateUserProfile);

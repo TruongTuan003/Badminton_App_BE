@@ -167,8 +167,8 @@ exports.updateUser = async (req, res) => {
   }
 };
 
-// Xóa user (chỉ dành cho admin)
-exports.deleteUser = async (req, res) => {
+// Khóa/Mở khóa user (chỉ dành cho admin)
+exports.lockUser = async (req, res) => {
   try {
     // Kiểm tra role admin
     if (req.user.role !== 'admin') {
@@ -176,20 +176,47 @@ exports.deleteUser = async (req, res) => {
     }
 
     const { id } = req.params;
+    const { action } = req.body; // 'lock' hoặc 'unlock'
 
-    // Không cho phép xóa chính mình
+    // Không cho phép khóa chính mình
     if (req.user.sub === id) {
-      return res.status(400).json({ message: 'Bạn không thể xóa chính mình' });
+      return res.status(400).json({ message: 'Bạn không thể khóa chính mình' });
     }
 
-    const user = await User.findByIdAndDelete(id);
+    const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: 'Không tìm thấy người dùng' });
     }
 
-    return res.json({ message: 'Xóa người dùng thành công' });
+    if (action === 'lock') {
+      user.status = 'lock';
+      await user.save();
+      return res.json({ 
+        message: 'Khóa người dùng thành công',
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          status: user.status,
+        },
+      });
+    } else if (action === 'unlock') {
+      user.status = 'active';
+      await user.save();
+      return res.json({ 
+        message: 'Mở khóa người dùng thành công',
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          status: user.status,
+        },
+      });
+    } else {
+      return res.status(400).json({ message: 'Action không hợp lệ. Sử dụng "lock" hoặc "unlock"' });
+    }
   } catch (error) {
-    return handleError(res, error, 'Lỗi khi xóa người dùng');
+    return handleError(res, error, 'Lỗi khi khóa/mở khóa người dùng');
   }
 };
 
