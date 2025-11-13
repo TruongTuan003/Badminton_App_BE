@@ -16,11 +16,14 @@ const mealRoutes = require("./routes/mealRoutes");
 const mealScheduleRoutes = require("./routes/mealScheduleRoutes");
 const mealPlanRoutes = require("./routes/mealPlanRoutes");
 const mealPlanRouteAI = require("./routes/mealPlanRouteAI");
+const AIChatRoute = require("./routes/AIChatRoute");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 
 // ✅ Thêm session middleware TRƯỚC khi dùng passport
 app.use(
@@ -45,6 +48,7 @@ app.use("/api/meals", mealRoutes);
 app.use("/api/meal-schedules", mealScheduleRoutes);
 app.use("/api/meal-plans", mealPlanRoutes); 
 app.use("/api/meal-plans-ai", mealPlanRouteAI);
+app.use("/api/chat", AIChatRoute);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
