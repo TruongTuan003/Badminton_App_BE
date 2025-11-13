@@ -15,6 +15,7 @@ const scheduleRoutes = require("./routes/scheduleRoutes");
 const mealRoutes = require("./routes/mealRoutes");
 const mealScheduleRoutes = require("./routes/mealScheduleRoutes");
 const mealPlanRoutes = require("./routes/mealPlanRoutes");
+const mealPlanRouteAI = require("./routes/mealPlanRouteAI");
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use("/api/schedules", scheduleRoutes);
 app.use("/api/meals", mealRoutes);
 app.use("/api/meal-schedules", mealScheduleRoutes);
 app.use("/api/meal-plans", mealPlanRoutes); 
+app.use("/api/meal-plans-ai", mealPlanRouteAI);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

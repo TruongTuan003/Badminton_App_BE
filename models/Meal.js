@@ -13,4 +13,10 @@ const mealSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// Tạo index để tối ưu query performance
+// Compound index cho name + goal (thường query cùng lúc)
+mealSchema.index({ name: 1, goal: 1 }, { unique: true });
+// Index riêng cho goal (để query theo goal)
+mealSchema.index({ goal: 1 });
+
 module.exports = mongoose.model("Meal", mealSchema);

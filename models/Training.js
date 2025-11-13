@@ -11,6 +11,7 @@ const trainingSchema = new mongoose.Schema({
   image_url: { type: String },
   step: { type: [String], default: [] }, // Mảng các bước thực hiện
   createdAt: { type: Date, default: Date.now }
+
 });
 
 module.exports = mongoose.model("Training", trainingSchema);

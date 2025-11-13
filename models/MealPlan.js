@@ -5,7 +5,7 @@ const mealPlanSchema = new mongoose.Schema({
   description: { type: String }, // Mô tả thực đơn
   type: { 
     type: String, 
-    enum: ["weekly", "monthly"], 
+    enum: ["weekly", "monthly", "daily"], 
     required: true 
   }, // Tuần hoặc tháng
   goal: { 

@@ -11,7 +11,11 @@ const userSchema = new Schema({
   gender: { type: String, maxLength: 20 },
   height: { type: Number }, // cm
   weight: { type: Number }, // kg
-  goal: { type: String },   // có thể JSON.stringify([...])
+    goal: {
+    type: [String], // Lưu đúng dạng mảng
+    required: true,
+    default: [],
+  },
   status: { type: String, required: true, default: 'pending', maxLength: 20 }, // pending | active
 }, {
   timestamps: true // tự động tạo createdAt và updatedAt

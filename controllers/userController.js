@@ -1,4 +1,4 @@
-// controllers/userController.js
+
 const User = require('../models/User');
 const Training = require('../models/Training');
 const Meal = require('../models/Meal');
@@ -7,23 +7,36 @@ const MealSchedule = require('../models/MealSchedule');
 const Schedule = require('../models/Schedule');
 const jwt = require('jsonwebtoken');
 
-// Hàm trợ giúp để xử lý lỗi
+
 const handleError = (res, error, message = 'Lỗi máy chủ, vui lòng thử lại sau') => {
   console.error(`Error: ${error.message}`, error);
   return res.status(500).json({ message });
 };
 
-// Hàm trợ giúp để tạo đối tượng user response
+
 const createUserResponse = (user) => {
-  // Parse goal nếu là JSON string
-  let parsedGoal = user.goal;
-  try {
-    if (user.goal) {
-      parsedGoal = JSON.parse(user.goal);
-    }
-  } catch (e) {
-    console.log('Goal không phải là JSON string');
+
+ let parsedGoal = [];
+
+try {
+  // Nếu user.goal là chuỗi dạng JSON (ví dụ: '["Tăng cơ"]')
+  if (typeof user.goal === 'string') {
+    parsedGoal = JSON.parse(user.goal);
   }
+  // Nếu đã là mảng sẵn (ví dụ: ["Tăng cơ"])
+  else if (Array.isArray(user.goal)) {
+    parsedGoal = user.goal;
+  }
+  // Nếu chỉ là string thường (ví dụ: "Tăng cơ")
+  else if (typeof user.goal === 'string') {
+    parsedGoal = [user.goal];
+  }
+} catch (e) {
+  console.warn('⚠️ Không thể parse goal:', e.message);
+  // fallback nếu parse lỗi → vẫn giữ giá trị cũ
+  parsedGoal = Array.isArray(user.goal) ? user.goal : [user.goal];
+}
+
   
   return {
     id: user._id,
@@ -39,7 +52,6 @@ const createUserResponse = (user) => {
   };
 };
 
-// Hàm trợ giúp để chuẩn bị dữ liệu cập nhật
 const prepareUpdateData = ({ name, age, gender, height, weight, goals }) => {
   const updateData = {};
   
@@ -53,7 +65,6 @@ const prepareUpdateData = ({ name, age, gender, height, weight, goals }) => {
   return updateData;
 };
 
-// Lấy thông tin profile của user
 exports.getUserProfile = async (req, res) => {
   try {
     const userId = req.user.sub;
@@ -70,7 +81,6 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
-// Cập nhật thông tin profile của user
 exports.updateUserProfile = async (req, res) => {
   try {
     const userId = req.user.sub;
@@ -615,7 +625,6 @@ exports.getSystemStatistics = async (req, res) => {
   }
 };
 
-// Cập nhật thông tin profile sau khi đăng ký và xác thực OTP
 exports.completeUserProfile = async (req, res) => {
   try {
     const { userId } = req.body;
@@ -624,12 +633,10 @@ exports.completeUserProfile = async (req, res) => {
       return res.status(400).json({ message: 'Thiếu thông tin người dùng' });
     }
     
-    // Kiểm tra và xử lý userId để đảm bảo là ObjectId hợp lệ
     const mongoose = require('mongoose');
     let userObjectId;
     
     try {
-      // Nếu userId là một chuỗi hợp lệ, chuyển đổi thành ObjectId
       if (mongoose.Types.ObjectId.isValid(userId)) {
         userObjectId = new mongoose.Types.ObjectId(userId);
       } else {
@@ -641,7 +648,6 @@ exports.completeUserProfile = async (req, res) => {
       return res.status(400).json({ message: 'ID người dùng không hợp lệ' });
     }
     
-    // Tìm user bằng ObjectId đã xác thực
     const user = await User.findById(userObjectId);
     
     if (!user) {

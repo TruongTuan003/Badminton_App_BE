@@ -8,7 +8,6 @@ const nodemailer = require('nodemailer');
 const OTP_EXP_MIN = parseInt(process.env.OTP_EXP_MIN || '5', 10);
 const PENDING_USER_EXP_HOURS = parseInt(process.env.PENDING_USER_EXP_HOURS || '24', 10);
 
-// Mailer (tùy chọn: nếu thiếu cấu hình, sẽ log OTP ra console)
 function buildTransporter() {
   if (!process.env.SMTP_HOST) return null;
   return nodemailer.createTransport({
@@ -45,53 +44,42 @@ exports.register = async (req, res) => {
   try {
     const { email, name, password } = req.body;
     
-    // Validate required fields
     if (!email || !password || !name) {
       return res.status(400).json({ message: 'Họ tên, email và mật khẩu là bắt buộc' });
     }
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ message: 'Email không hợp lệ' });
     }
-    // Validate password length
     if (password.length < 6) {
       return res.status(400).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự' });
     }
-    // Check if email already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(409).json({ message: 'Email đã tồn tại' });
     }
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
-    // Generate OTP for email verification
     const code = genOtp();
     const otpExpiresAt = new Date(Date.now() + OTP_EXP_MIN * 60 * 1000);
-    // Create new user with status pending
     const user = await User.create({
       name,
       email,
       passwordHash,
       role: 'user',
-      status: 'pending', // Trạng thái chờ xác thực OTP
+      status: 'pending', 
     });
     
-    // Delete any existing OTPs for this email
     await Otp.deleteMany({ email });
     
-    // Create new OTP record
     await Otp.create({
       email,
       code,
       expiresAt: otpExpiresAt,
     });
     
-    // Send verification email
     try {
       await sendOtpEmail(email, code);
       
-      // Return success response
       return res.status(201).json({
         message: 'Đăng ký thành công. Vui lòng xác thực OTP trong email.',
         userId: user._id,
@@ -100,7 +88,6 @@ exports.register = async (req, res) => {
     } catch (emailError) {
       console.error('Email sending error:', emailError);
       
-      // Xóa user đã tạo nếu gửi email thất bại
       await User.deleteOne({ _id: user._id });
       
       return res.status(500).json({ message: 'Không thể gửi email xác thực. Vui lòng thử lại sau.' });
@@ -108,12 +95,11 @@ exports.register = async (req, res) => {
   } catch (err) {
     console.error('Register error:', err);
     
-    // Handle specific database errors
     if (err.name === 'ValidationError') {
       return res.status(400).json({ message: 'Dữ liệu không hợp lệ', errors: err.errors });
     }
     
-    if (err.code === 11000) { // MongoDB duplicate key error
+    if (err.code === 11000) { 
       return res.status(409).json({ message: 'Email đã tồn tại' });
     }
     
@@ -126,30 +112,27 @@ exports.verifyOtp = async (req, res) => {
     const { email, otp } = req.body;
     if (!email || !otp) return res.status(400).json({ message: 'Thiếu email hoặc otp' });
 
-    // Tìm OTP hợp lệ
     const record = await Otp.findOne({ 
       email, 
       code: otp, 
       consumed: false 
     }).sort({ createdAt: -1 });
     
-    // Kiểm tra OTP có tồn tại không
     if (!record) return res.status(400).json({ message: 'OTP không hợp lệ' });
     
-    // Kiểm tra OTP có hết hạn không
+
     if (new Date(record.expiresAt).getTime() < Date.now()) {
       return res.status(400).json({ message: 'OTP đã hết hạn' });
     }
 
-    // Đánh dấu OTP đã sử dụng
+    
     record.consumed = true;
     await record.save();
     
-    // Tìm user trong bảng User với trạng thái pending
+  
     const user = await User.findOne({ email, status: 'pending' });
     if (!user) return res.status(404).json({ message: 'Không tìm thấy thông tin đăng ký' });
 
-    // Cập nhật trạng thái người dùng thành active
     user.status = 'active';
     await user.save();
 
@@ -178,7 +161,6 @@ exports.login = async (req, res) => {
     if (!ok) return res.status(401).json({ message: 'Sai email hoặc mật khẩu' });
 
     if (user.status === 'pending') {
-      // Tài khoản chưa xác thực OTP
       return res.status(403).json({ 
         message: 'Tài khoản chưa được xác thực OTP. Vui lòng xác thực OTP trước khi đăng nhập.',
         isPending: true,
@@ -208,7 +190,6 @@ exports.login = async (req, res) => {
   }
 };
 
-// (Tùy chọn) cập nhật hồ sơ sau khi đăng ký
 exports.resendOtp = async (req, res) => {
   try {
     const { email } = req.body;
@@ -217,16 +198,13 @@ exports.resendOtp = async (req, res) => {
       return res.status(400).json({ message: 'Email là bắt buộc' });
     }
     
-    // Kiểm tra xem email có trong bảng User với trạng thái pending không
     const pendingUser = await User.findOne({ email, status: 'pending' });
     if (!pendingUser) {
       return res.status(404).json({ message: 'Không tìm thấy thông tin đăng ký hoặc tài khoản đã được xác thực' });
     }
     
-    // Xóa OTP cũ
     await Otp.deleteMany({ email });
     
-    // Tạo OTP mới
     const code = genOtp();
     await Otp.create({
       email,
@@ -234,7 +212,6 @@ exports.resendOtp = async (req, res) => {
       expiresAt: new Date(Date.now() + OTP_EXP_MIN * 60 * 1000),
     });
     
-    // Gửi email OTP mới
     try {
       await sendOtpEmail(email, code);
       
@@ -285,16 +262,13 @@ exports.forgotPassword = async (req, res) => {
       return res.status(400).json({ message: 'Email là bắt buộc' });
     }
     
-    // Kiểm tra xem email có tồn tại trong hệ thống không
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: 'Email không tồn tại trong hệ thống' });
     }
     
-    // Xóa OTP cũ nếu có
     await Otp.deleteMany({ email });
     
-    // Tạo OTP mới
     const code = genOtp();
     await Otp.create({
       email,
@@ -302,7 +276,6 @@ exports.forgotPassword = async (req, res) => {
       expiresAt: new Date(Date.now() + OTP_EXP_MIN * 60 * 1000),
     });
     
-    // Gửi email OTP với flag đặt lại mật khẩu
     try {
       await sendOtpEmail(email, code, true);
       
@@ -328,42 +301,34 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ message: 'Email, OTP và mật khẩu mới là bắt buộc' });
     }
     
-    // Validate password length
     if (newPassword.length < 6) {
       return res.status(400).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự' });
     }
     
-    // Tìm OTP hợp lệ
     const record = await Otp.findOne({ 
       email, 
       code: otp, 
       consumed: false 
     }).sort({ createdAt: -1 });
     
-    // Kiểm tra OTP có tồn tại không
     if (!record) {
       return res.status(400).json({ message: 'OTP không hợp lệ' });
     }
     
-    // Kiểm tra OTP có hết hạn không
     if (new Date(record.expiresAt).getTime() < Date.now()) {
       return res.status(400).json({ message: 'OTP đã hết hạn' });
     }
     
-    // Tìm user
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: 'Không tìm thấy người dùng' });
     }
     
-    // Đánh dấu OTP đã sử dụng
     record.consumed = true;
     await record.save();
     
-    // Hash mật khẩu mới
     const passwordHash = await bcrypt.hash(newPassword, 10);
     
-    // Cập nhật mật khẩu
     user.passwordHash = passwordHash;
     await user.save();
     
