@@ -83,11 +83,19 @@ exports.getUserProfile = async (req, res) => {
 
 exports.updateUserProfile = async (req, res) => {
   try {
+    
     const userId = req.user.sub;
     const user = await User.findById(userId);
     
     if (!user) {
       return res.status(404).json({ message: 'Không tìm thấy thông tin người dùng' });
+    }
+    
+    // Kiểm tra status - chỉ cho phép user active cập nhật
+    if (user.status !== 'active') {
+      return res.status(403).json({ 
+        message: 'Tài khoản của bạn chưa được kích hoạt. Vui lòng xác thực OTP trước.' 
+      });
     }
     
     const updateData = prepareUpdateData(req.body);
@@ -141,9 +149,9 @@ exports.getAllUsers = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     // Kiểm tra role admin
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
-    }
+    // if (req.user.role !== 'admin') {
+    //   return res.status(403).json({ message: 'Bạn không có quyền truy cập' });
+    // }
 
     const { id } = req.params;
     const { name, email, phone, role, status } = req.body;
