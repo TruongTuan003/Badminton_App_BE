@@ -2,6 +2,7 @@ const TrainingPlan = require("../models/TrainingPlan");
 const Training = require("../models/Training");
 const Schedule = require("../models/Schedule");
 const ScheduleDetail = require("../models/ScheduleDetail");
+const { createScheduleWithWorkouts } = require("./scheduleController");
 
 const handleError = (res, error, message = 'Lỗi máy chủ, vui lòng thử lại sau') => {
   console.error(`Error: ${error.message}`, error);
@@ -247,7 +248,9 @@ exports.deleteTrainingPlan = async (req, res) => {
 exports.applyTrainingPlan = async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { planId, startDate } = req.body;
+    const { planId, startDate, replaceExisting } = req.body; // Thêm option replaceExisting
+
+    console.log('📋 Applying training plan:', { userId, planId, startDate, replaceExisting });
 
     if (!planId || !startDate) {
       return res.status(400).json({ message: 'Thiếu planId hoặc startDate' });
@@ -260,8 +263,22 @@ exports.applyTrainingPlan = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy kế hoạch tập luyện hoặc kế hoạch đã bị vô hiệu hóa' });
     }
 
-    const start = new Date(startDate);
+    console.log('✅ Found plan:', plan.name, 'Type:', plan.type, 'Days:', plan.planDays.length);
+
+    // Xử lý date để tránh timezone issue
+    // Nếu startDate là string "YYYY-MM-DD", parse thành local date (không UTC)
+    let start;
+    if (typeof startDate === 'string' && startDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Parse "YYYY-MM-DD" thành local date (không bị timezone)
+      const [year, month, day] = startDate.split('-').map(Number);
+      start = new Date(year, month - 1, day); // month - 1 vì Date month bắt đầu từ 0
+    } else {
+      start = new Date(startDate);
+    }
     start.setHours(0, 0, 0, 0);
+    
+    console.log('📅 Parsed startDate:', startDate, '→', start.toISOString(), 'Local:', start.toLocaleDateString());
+    
     const startDayOfWeek = start.getDay(); // 0 = Chủ nhật, 1 = Thứ 2, ..., 6 = Thứ 7
 
     // Tính toán các ngày cần tạo schedule dựa trên type
@@ -301,61 +318,61 @@ exports.applyTrainingPlan = async (req, res) => {
       }
     }
 
-    const createdSchedules = [];
+    console.log('📅 Dates to create schedules:', datesToCreate.length);
+
+    let totalWorkoutsAdded = 0;
+    const processedDates = [];
 
     for (const item of datesToCreate) {
       const date = new Date(item.date);
       date.setHours(0, 0, 0, 0);
       const planDay = item.planDay;
 
-      // Kiểm tra xem schedule đã tồn tại chưa
-      const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
+      const dateStr = date.toISOString().split('T')[0];
+      console.log('🔄 Processing date:', dateStr, 'Workouts:', planDay.workouts?.length || 0);
 
-      const existingSchedule = await Schedule.findOne({
-        userId,
-        date: { $gte: startOfDay, $lte: endOfDay }
-      });
-
-      let schedule;
-      if (existingSchedule) {
-        schedule = existingSchedule;
-      } else {
-        schedule = await Schedule.create({
-          userId,
-          date,
-          status: 'active'
-        });
-        createdSchedules.push(schedule._id);
-      }
-
-      // Thêm các bài tập vào schedule
+      // Chuẩn bị workouts cho ngày này
+      const workoutsToAdd = [];
       if (planDay && planDay.workouts) {
         for (const workout of planDay.workouts) {
-          // Kiểm tra xem workout đã tồn tại chưa
-          const existingDetail = await ScheduleDetail.findOne({
-            scheduleId: schedule._id,
-            workoutId: workout.trainingId
-          });
-
-          if (!existingDetail) {
-            await ScheduleDetail.create({
-              scheduleId: schedule._id,
-              workoutId: workout.trainingId,
-              time: workout.time || null,
-              status: 'pending',
-              order: workout.order || 0
-            });
+          // Lấy trainingId đúng cách (có thể là object sau khi populate)
+          let trainingId = workout.trainingId;
+          if (typeof workout.trainingId === 'object' && workout.trainingId._id) {
+            trainingId = workout.trainingId._id;
           }
+          
+          workoutsToAdd.push({
+            trainingId: trainingId,
+            time: workout.time || null,
+            note: workout.note || null
+          });
+        }
+      }
+
+      if (workoutsToAdd.length > 0) {
+        // Gọi hàm tạo schedule với workouts
+        const result = await createScheduleWithWorkouts(
+          userId,
+          date,
+          workoutsToAdd,
+          `Kế hoạch: ${plan.name}`,
+          replaceExisting || false // Truyền option replaceExisting
+        );
+
+        if (result.success) {
+          processedDates.push(dateStr);
+          totalWorkoutsAdded += result.addedCount;
         }
       }
     }
 
+    console.log('✅ Apply completed. Dates processed:', processedDates.length, 'Workouts added:', totalWorkoutsAdded);
+
     return res.json({
       message: 'Áp dụng kế hoạch tập luyện thành công',
-      schedulesCreated: createdSchedules.length
+      datesProcessed: processedDates.length,
+      totalWorkouts: totalWorkoutsAdded,
+      dates: processedDates
     });
   } catch (error) {
     return handleError(res, error, 'Lỗi khi áp dụng kế hoạch tập luyện');

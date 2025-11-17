@@ -8,6 +8,7 @@ const {
   addWorkoutToSchedule,
   getScheduleDetails,
   updateScheduleDetailStatus,
+  updateScheduleDetailStatusByWorkoutId,
   deleteSchedule,
   getScheduleByDate,
   removeTrainingFromSchedule
@@ -35,6 +36,9 @@ router.post("/:id/add-workout", authenticateToken, addWorkoutToSchedule);
 
 // 🔹 6. Cập nhật trạng thái bài tập trong lịch (pending / done / skipped)
 router.put("/detail/:id", authenticateToken, updateScheduleDetailStatus);
+
+// 🔹 6b. Cập nhật trạng thái bài tập theo workoutId (dùng khi hoàn thành workout)
+router.put("/detail-by-workout", authenticateToken, updateScheduleDetailStatusByWorkoutId);
 
 // 🔹 7. Xóa 1 bài tập khỏi lịch
 router.delete("/:id/remove-training/:trainingId", authenticateToken, removeTrainingFromSchedule);

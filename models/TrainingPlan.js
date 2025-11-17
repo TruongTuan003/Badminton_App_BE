@@ -24,6 +24,7 @@ const trainingPlanSchema = new mongoose.Schema({
     workouts: [{
       trainingId: { type: mongoose.Schema.Types.ObjectId, ref: "Training", required: true },
       time: { type: String }, // Ví dụ: "07:30"
+      note: { type: String }, // Ghi chú cho bài tập này
       order: { type: Number, default: 0 } // Thứ tự trong ngày
     }]
   }],
