@@ -7,7 +7,7 @@ const mealSchema = new mongoose.Schema({
   protein: Number,
   carbs: Number,
   fat: Number,
-  goal: { type: String, enum: ["Giảm cân", "Tăng cơ", "Duy trì sức khỏe"], required: true },
+  goal: { type: String, enum: ["Nâng cao kỹ năng cầu lông", "Cải thiện thể chất", "Quản lí hình thể và sức khỏe"], required: true },
   image_url: String,
   description: String,
   createdAt: { type: Date, default: Date.now }

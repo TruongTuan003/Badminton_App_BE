@@ -7,6 +7,11 @@ const otpSchema = new Schema({
   code: { type: String, required: true, maxLength: 6 },
   expiresAt: { type: Date, required: true },
   consumed: { type: Boolean, required: true, default: false },
+  // Lưu thông tin user tạm thời cho đăng ký
+  pendingUserData: {
+    name: { type: String },
+    passwordHash: { type: String },
+  },
 }, {
   timestamps: true // tự động tạo createdAt và updatedAt
 });

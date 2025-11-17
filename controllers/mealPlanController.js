@@ -42,10 +42,14 @@ exports.getMealPlanById = async (req, res) => {
 // 📍 Tạo meal plan mới (chỉ admin)
 exports.createMealPlan = async (req, res) => {
   try {
-    const { name, description, type, goal, meals } = req.body;
+    let { name, description, type, goal, goals, meals } = req.body;
+
+    // Backward compatible: chấp nhận cả 'goal' và 'goals'
+    const goalsArray = goals ? (Array.isArray(goals) ? goals : [goals]) 
+                             : (goal ? (Array.isArray(goal) ? goal : [goal]) : null);
 
     // Validate
-    if (!name || !type || !goal) {
+    if (!name || !type || !goalsArray) {
       return res.status(400).json({ message: "Thiếu thông tin bắt buộc" });
     }
 
@@ -94,7 +98,7 @@ exports.createMealPlan = async (req, res) => {
       name,
       description,
       type,
-      goal,
+      goals: goalsArray,
       meals,
     });
 
@@ -119,7 +123,7 @@ exports.createMealPlan = async (req, res) => {
 exports.updateMealPlan = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, type, goal, meals, isActive } = req.body;
+    let { name, description, type, goal, goals, meals, isActive } = req.body;
 
     const mealPlan = await MealPlan.findById(id);
     if (!mealPlan) {
@@ -165,10 +169,16 @@ exports.updateMealPlan = async (req, res) => {
       }
     }
 
+    // Backward compatible: chấp nhận cả 'goal' và 'goals'
+    if (goals !== undefined || goal !== undefined) {
+      const goalsArray = goals ? (Array.isArray(goals) ? goals : [goals]) 
+                               : (goal ? (Array.isArray(goal) ? goal : [goal]) : null);
+      if (goalsArray) mealPlan.goals = goalsArray;
+    }
+
     if (name !== undefined) mealPlan.name = name;
     if (description !== undefined) mealPlan.description = description;
     if (type !== undefined) mealPlan.type = type;
-    if (goal !== undefined) mealPlan.goal = goal;
     if (meals !== undefined) mealPlan.meals = meals;
     if (isActive !== undefined) mealPlan.isActive = isActive;
     mealPlan.updatedAt = new Date();
@@ -214,7 +224,7 @@ exports.getActiveMealPlans = async (req, res) => {
     const { goal, type } = req.query;
 
     const query = { isActive: true };
-    if (goal) query.goal = goal;
+    if (goal) query.goals = goal; // Tìm meal plan có goal trong array goals
     if (type) query.type = type;
 
     const mealPlans = await MealPlan.find(query)

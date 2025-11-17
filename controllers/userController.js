@@ -16,29 +16,6 @@ const handleError = (res, error, message = 'Lỗi máy chủ, vui lòng thử l�
 
 
 const createUserResponse = (user) => {
-
- let parsedGoal = [];
-
-try {
-  // Nếu user.goal là chuỗi dạng JSON (ví dụ: '["Tăng cơ"]')
-  if (typeof user.goal === 'string') {
-    parsedGoal = JSON.parse(user.goal);
-  }
-  // Nếu đã là mảng sẵn (ví dụ: ["Tăng cơ"])
-  else if (Array.isArray(user.goal)) {
-    parsedGoal = user.goal;
-  }
-  // Nếu chỉ là string thường (ví dụ: "Tăng cơ")
-  else if (typeof user.goal === 'string') {
-    parsedGoal = [user.goal];
-  }
-} catch (e) {
-  console.warn('⚠️ Không thể parse goal:', e.message);
-  // fallback nếu parse lỗi → vẫn giữ giá trị cũ
-  parsedGoal = Array.isArray(user.goal) ? user.goal : [user.goal];
-}
-
-  
   return {
     id: user._id,
     name: user.name,
@@ -47,7 +24,7 @@ try {
     gender: user.gender,
     height: user.height,
     weight: user.weight,
-    goal: parsedGoal,
+    goal: user.goal || [],
     createdAt: user.createdAt,
     status: user.status
   };
@@ -61,7 +38,7 @@ const prepareUpdateData = ({ name, age, gender, height, weight, goals }) => {
   if (gender !== undefined) updateData.gender = gender;
   if (height !== undefined) updateData.height = Number(height);
   if (weight !== undefined) updateData.weight = Number(weight);
-  if (goals !== undefined) updateData.goal = Array.isArray(goals) ? JSON.stringify(goals) : goals;
+  if (goals !== undefined) updateData.goal = Array.isArray(goals) ? goals : [goals];
   
   return updateData;
 };

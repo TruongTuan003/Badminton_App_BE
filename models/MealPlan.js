@@ -8,11 +8,17 @@ const mealPlanSchema = new mongoose.Schema({
     enum: ["weekly", "monthly", "daily"], 
     required: true 
   }, // Tuần hoặc tháng
-  goal: { 
-    type: String, 
-    enum: ["Giảm cân", "Tăng cơ", "Duy trì sức khỏe"], 
-    required: true 
-  }, // Mục tiêu của thực đơn
+  goals: { 
+    type: [String], 
+    enum: ["Nâng cao kỹ năng cầu lông", "Cải thiện thể chất", "Quản lí hình thể và sức khỏe"], 
+    required: true,
+    validate: {
+      validator: function(v) {
+        return v && v.length > 0;
+      },
+      message: 'Phải có ít nhất một mục tiêu'
+    }
+  }, // Mục tiêu của thực đơn (có thể nhiều)
   meals: [{
     dayOfWeek: { type: String }, // Cho weekly: "Thứ 2", "Thứ 3", ..., "Chủ nhật"
     dayNumber: { type: Number }, // Cho monthly: 1, 2, 3, ..., 30

@@ -120,19 +120,37 @@ Trả về JSON hợp lệ:
 ====================================================== */
 exports.createMealPlan = async (req, res) => {
   try {
-    const { goal, type } = req.body;
-    console.log('🟢 Dữ liệu nhận được từ FE:', req.body) ;
-    if (!goal || !type) return res.status(400).json({ error: "Thiếu goal hoặc type" });
+    let { goal, goals, type } = req.body;
+    
+    // Xử lý goals: chấp nhận cả 'goal' (cũ) và 'goals' (mới)
+    if (!goals && !goal) {
+      return res.status(400).json({ error: "Thiếu goal hoặc goals" });
+    }
+    if (!type) {
+      return res.status(400).json({ error: "Thiếu type" });
+    }
+    
+    // Chuẩn hóa goals thành array
+    const goalsArray = goals ? (Array.isArray(goals) ? goals : [goals]) : (Array.isArray(goal) ? goal : [goal]);
+    
+    // Lấy goal đầu tiên để tạo meal plan và prompt AI
+    const primaryGoal = goalsArray[0];
+    
+    console.log('🟢 Dữ liệu nhận được từ FE:', { goals: goalsArray, primaryGoal, type });
 
-    // 1️⃣ Sinh danh sách món ăn từ Gemini
+    // 1️⃣ Sinh danh sách món ăn từ Gemini - dùng tất cả goals để AI hiểu rõ hơn
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    const result = await model.generateContent(promptGenerateMealPlan(goal, type));
+    const goalsString = goalsArray.join(', ');
+    const result = await model.generateContent(promptGenerateMealPlan(goalsString, type));
     const json = JSON.parse(result.response.text().match(/\{[\s\S]*\}/)[0]);
     const { name, description, meals } = json;
 
-    // 2️⃣ Kiểm tra món ăn trong DB
+    // 2️⃣ Kiểm tra món ăn trong DB - tìm meal có bất kỳ goal nào trong goalsArray
     const mealNames = meals.map((m) => m.mealName);
-    const existing = await Meal.find({ name: { $in: mealNames }, goal });
+    const existing = await Meal.find({ 
+      name: { $in: mealNames }, 
+      goal: { $in: goalsArray } 
+    });
     const existMap = new Map(existing.map((m) => [m.name, m]));
 
     const finalMeals = [];
@@ -143,8 +161,8 @@ exports.createMealPlan = async (req, res) => {
         continue;
       }
 
-      // Nếu chưa có → sinh mới
-      const details = await generateMealDetails(meal.mealName, goal);
+      // Nếu chưa có → sinh mới với primaryGoal
+      const details = await generateMealDetails(meal.mealName, primaryGoal);
       const mealDoc = found
         ? await Meal.findByIdAndUpdate(
             found._id,
@@ -154,25 +172,27 @@ exports.createMealPlan = async (req, res) => {
         : await new Meal({
             name: meal.mealName,
             mealType: meal.mealType,
-            goal,
-            description: `Món ăn dành cho mục tiêu ${goal}`,
+            goal: primaryGoal, // Dùng primaryGoal cho Meal (chỉ 1 goal)
+            description: `Món ăn dành cho mục tiêu ${primaryGoal}`,
             ...details,
           }).save();
 
       finalMeals.push({ ...meal, mealId: mealDoc._id });
     }
 
-    // 3️⃣ Lưu MealPlan
+    // 3️⃣ Lưu MealPlan với TẤT CẢ goals
     const plan = await new MealPlan({
       name,
       description,
-      goal,
+      goals: goalsArray, // Lưu tất cả goals vào array
       type,
       meals: finalMeals,
     }).save();
 
+    console.log(`✅ MealPlan created with ${goalsArray.length} goal(s):`, goalsArray);
     res.json({ message: "✅ Meal plan created", data: plan });
   } catch (err) {
+    console.error('❌ Error creating meal plan:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -184,7 +204,7 @@ exports.getAllMealPlans = async (_, res) =>
   res.json(await MealPlan.find().populate("meals.mealId"));
 
 exports.getMealPlansByGoal = async (req, res) =>
-  res.json(await MealPlan.find({ goal: req.params.goal }).populate("meals.mealId"));
+  res.json(await MealPlan.find({ goals: req.params.goal }).populate("meals.mealId"));
 
 exports.toggleMealPlan = async (req, res) => {
   const plan = await MealPlan.findById(req.params.id);
