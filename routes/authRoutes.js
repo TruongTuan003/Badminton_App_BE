@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../controllers/authController');
 const passport = require("../config/passport");
+const LoginLog = require('../models/LoginLog');
 const jwt = require('jsonwebtoken');
 
 // GET /api/auth - Kiểm tra kết nối
@@ -39,17 +40,40 @@ router.get("/google",passport.authenticate("google", { scope: ["profile", "email
 router.get(
   "/google/callback",
   passport.authenticate("google", { session: false }),
-  (req, res) => {
-    const user = req.user;
-    const token = jwt.sign(
-      { id: user._id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+  async (req, res) => {
+    try {
+      const user = req.user;
+      const token = jwt.sign(
+        { id: user._id, email: user.email },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
 
-    // ⚡️ Redirect về custom URL cho Expo (phải có dạng exp:// hoặc https)
-    const redirectUrl = `exp://192.168.1.142:8081?token=${token}`;
-    res.redirect(redirectUrl);
+      // Ghi log đăng nhập cho Google OAuth
+      try {
+        const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+        const userAgent = req.headers['user-agent'] || 'unknown';
+        
+        await LoginLog.create({
+          userId: user._id,
+          email: user.email,
+          role: user.role || 'user',
+          loginAt: new Date(),
+          ipAddress: ipAddress,
+          userAgent: userAgent,
+        });
+      } catch (logError) {
+        // Không làm gián đoạn quá trình đăng nhập nếu ghi log thất bại
+        console.error('Error logging Google OAuth login:', logError);
+      }
+
+      // ⚡️ Redirect về custom URL cho Expo (phải có dạng exp:// hoặc https)
+      const redirectUrl = `exp://192.168.1.142:8081?token=${token}`;
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error('Google OAuth callback error:', error);
+      res.redirect('exp://192.168.1.142:8081?error=login_failed');
+    }
   }
 );
 

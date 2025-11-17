@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Otp = require('../models/Otp');
+const LoginLog = require('../models/LoginLog');
 const nodemailer = require('nodemailer');
 
 const OTP_EXP_MIN = parseInt(process.env.OTP_EXP_MIN || '5', 10);
@@ -173,6 +174,24 @@ exports.login = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    // Ghi log đăng nhập
+    try {
+      const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
+      
+      await LoginLog.create({
+        userId: user._id,
+        email: user.email,
+        role: user.role,
+        loginAt: new Date(),
+        ipAddress: ipAddress,
+        userAgent: userAgent,
+      });
+    } catch (logError) {
+      // Không làm gián đoạn quá trình đăng nhập nếu ghi log thất bại
+      console.error('Error logging login:', logError);
+    }
 
     return res.json({
       token,

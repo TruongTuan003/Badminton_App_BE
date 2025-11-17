@@ -5,6 +5,7 @@ const Meal = require('../models/Meal');
 const TrainingLog = require('../models/TrainingLog');
 const MealSchedule = require('../models/MealSchedule');
 const Schedule = require('../models/Schedule');
+const LoginLog = require('../models/LoginLog');
 const jwt = require('jsonwebtoken');
 
 
@@ -473,19 +474,10 @@ exports.getSystemStatistics = async (req, res) => {
       const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0);
       const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
 
-      // Users active trong ngày (có training log hoặc schedule)
-      const activeUserIds = new Set();
-      const logs = await TrainingLog.find({
-        date: { $gte: startOfDay, $lte: endOfDay }
-      }).distinct('userId');
-      logs.forEach(id => activeUserIds.add(id.toString()));
-
-      const schedules = await Schedule.find({
-        date: { $gte: startOfDay, $lte: endOfDay }
-      }).distinct('userId');
-      schedules.forEach(id => activeUserIds.add(id.toString()));
-
-      const logins = activeUserIds.size;
+      // Đếm số lượt đăng nhập thực tế trong ngày từ LoginLog
+      const logins = await LoginLog.countDocuments({
+        loginAt: { $gte: startOfDay, $lte: endOfDay }
+      });
 
       // Workouts (training logs) trong ngày
       const workouts = await TrainingLog.countDocuments({
