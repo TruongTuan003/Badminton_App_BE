@@ -1,6 +1,6 @@
 const MealPlan = require("../models/MealPlan");
 const Meal = require("../models/Meal");
-const MealSchedule = require("../models/MealSchedule");
+const MealSchedule = require("../models/mealSchedule");
 
 // 📍 Lấy tất cả meal plans (cho admin)
 exports.getAllMealPlans = async (req, res) => {
