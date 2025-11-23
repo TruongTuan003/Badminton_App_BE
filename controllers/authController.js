@@ -43,45 +43,63 @@ const genOtp = () => (Math.floor(100000 + Math.random() * 900000)).toString();
 
 exports.register = async (req, res) => {
   try {
+    console.log('📝 Register request received:', { 
+      email: req.body?.email, 
+      hasName: !!req.body?.name,
+      hasPassword: !!req.body?.password 
+    });
+    
     const { email, name, password } = req.body;
     
     if (!email || !password || !name) {
+      console.log('❌ Missing required fields');
       return res.status(400).json({ message: 'Họ tên, email và mật khẩu là bắt buộc' });
     }
+    
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
+      console.log('❌ Invalid email format:', email);
       return res.status(400).json({ message: 'Email không hợp lệ' });
     }
+    
     if (password.length < 6) {
+      console.log('❌ Password too short');
       return res.status(400).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự' });
     }
     
     // Kiểm tra email đã tồn tại trong DB
+    console.log('🔍 Checking existing user...');
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      console.log('❌ User already exists:', email);
       return res.status(409).json({ message: 'Email đã tồn tại' });
     }
     
     // Kiểm tra email đang chờ xác thực OTP (chưa hết hạn)
+    console.log('🔍 Checking pending OTP...');
     const existingOtp = await Otp.findOne({ 
       email, 
       consumed: false,
       expiresAt: { $gt: new Date() }
     });
     if (existingOtp && existingOtp.pendingUserData) {
+      console.log('❌ Pending OTP exists for:', email);
       return res.status(409).json({ 
         message: 'Email này đang chờ xác thực OTP. Vui lòng kiểm tra email hoặc yêu cầu gửi lại OTP.'
       });
     }
     
+    console.log('🔐 Hashing password...');
     const passwordHash = await bcrypt.hash(password, 10);
     const code = genOtp();
     const otpExpiresAt = new Date(Date.now() + OTP_EXP_MIN * 60 * 1000);
     
     // Xóa các OTP cũ của email này
+    console.log('🗑️  Deleting old OTPs...');
     await Otp.deleteMany({ email });
     
     // Tạo OTP mới và lưu thông tin user tạm thời
+    console.log('💾 Creating new OTP...');
     await Otp.create({
       email,
       code,
@@ -91,30 +109,60 @@ exports.register = async (req, res) => {
         passwordHash,
       },
     });
+    console.log('✅ OTP created successfully');
     
     try {
+      console.log('📧 Sending OTP email...');
       await sendOtpEmail(email, code);
+      console.log('✅ Email sent successfully');
       
       return res.status(201).json({
         message: 'Đăng ký thành công. Vui lòng xác thực OTP trong email.',
         email: email,
       });
     } catch (emailError) {
-      console.error('Email sending error:', emailError);
+      console.error('❌ Email sending error:', emailError);
+      console.error('Email error details:', {
+        message: emailError.message,
+        code: emailError.code,
+        command: emailError.command
+      });
       
       // Xóa OTP nếu không gửi được email
       await Otp.deleteMany({ email });
       
-      return res.status(500).json({ message: 'Không thể gửi email xác thực. Vui lòng thử lại sau.' });
+      return res.status(500).json({ 
+        message: 'Không thể gửi email xác thực. Vui lòng thử lại sau.',
+        error: process.env.NODE_ENV === 'development' ? emailError.message : undefined
+      });
     }
   } catch (err) {
     console.error('Register error:', err);
+    console.error('Error details:', {
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+      code: err.code
+    });
     
     if (err.name === 'ValidationError') {
       return res.status(400).json({ message: 'Dữ liệu không hợp lệ', errors: err.errors });
     }
     
-    return res.status(500).json({ message: 'Đăng ký thất bại. Vui lòng thử lại sau.' });
+    // Kiểm tra lỗi kết nối database
+    if (err.name === 'MongoServerError' || err.message?.includes('Mongo')) {
+      return res.status(500).json({ message: 'Lỗi kết nối cơ sở dữ liệu. Vui lòng thử lại sau.' });
+    }
+    
+    // Kiểm tra lỗi duplicate email (MongoDB unique index)
+    if (err.code === 11000 || err.code === 11001) {
+      return res.status(409).json({ message: 'Email đã tồn tại trong hệ thống' });
+    }
+    
+    return res.status(500).json({ 
+      message: 'Đăng ký thất bại. Vui lòng thử lại sau.',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 

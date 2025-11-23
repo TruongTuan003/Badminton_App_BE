@@ -21,7 +21,13 @@ const aiChatRoutes = require("./routes/AIChatRoute");
 
 const app = express();
 
-app.use(cors());
+// Cấu hình CORS chi tiết hơn để chấp nhận requests từ mobile app
+app.use(cors({
+  origin: true, // Cho phép tất cả origins (có thể restrict sau)
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // ✅ Thêm session middleware TRƯỚC khi dùng passport
