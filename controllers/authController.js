@@ -5,38 +5,64 @@ const User = require('../models/User');
 const Otp = require('../models/Otp');
 const LoginLog = require('../models/LoginLog');
 const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 const OTP_EXP_MIN = parseInt(process.env.OTP_EXP_MIN || '5', 10);
 const PENDING_USER_EXP_HOURS = parseInt(process.env.PENDING_USER_EXP_HOURS || '24', 10);
 
-function buildTransporter() {
-  if (!process.env.SMTP_HOST) return null;
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: false,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  });
-}
+// Khởi tạo Resend client
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function sendOtpEmail(email, code, isPasswordReset = false) {
-  const transporter = buildTransporter();
-  if (!transporter) {
-    console.log(`[OTP] ${email}: ${code}${isPasswordReset ? ' (Password Reset)' : ''}`);
-    return;
+  const subject = isPasswordReset
+    ? 'Đặt lại mật khẩu - Mã OTP'
+    : 'Xác thực tài khoản - Mã OTP';
+
+  const html = `
+    <div style="max-width: 500px; margin: 40px auto; padding: 30px; background: #f9f9f9; border-radius: 12px; text-align: center; font-family: Arial, sans-serif; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+      <h2 style="color: #1a73e8; margin-bottom: 8px;">Badminton App</h2>
+      <p style="color: #555; font-size: 16px; margin-bottom: 30px;">
+        ${isPasswordReset ? 'Yêu cầu đặt lại mật khẩu' : 'Xác minh tài khoản của bạn'}
+      </p>
+      
+      <div style="background: white; padding: 25px; border-radius: 12px; display: inline-block; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+        <p style="margin: 0 0 15px; color: #666; font-size: 16px;">Mã OTP của bạn là</p>
+        <div style="font-size: 38px; font-weight: bold; letter-spacing: 10px; color: #1a73e8;">
+          ${code}
+        </div>
+      </div>
+      
+      <p style="color: #666; margin: 30px 0 10px;">
+        Mã có hiệu lực trong <strong>${OTP_EXP_MIN} phút</strong>.
+      </p>
+      <p style="color: #999; font-size: 13px;">
+        Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email.
+      </p>
+      <hr style="border: none; border-top: 1px solid #eee; margin: 35px 0;">
+      <small style="color: #aaa;">© 2025 Badminton App – Đặt sân nhanh, chơi liền tay!</small>
+    </div>
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: process.env.FROM_EMAIL || "noreply@yourdomain.com",
+      to: email,
+      subject: subject,
+      text: `Mã OTP của bạn là ${code}. Mã này sẽ hết hạn sau ${OTP_EXP_MIN} phút.`,
+      html: html,
+    });
+
+    if (error) {
+      console.error('[OTP] Lỗi gửi email:', error);
+      throw error;
+    }
+
+    console.log(`[OTP] Đã gửi email thành công tới ${email} | ID: ${data?.id}`);
+    return { success: true };
+  } catch (err) {
+    console.error('[OTP] Gửi email thất bại:', err);
+    throw err; // để caller bắt lỗi và xóa OTP nếu cần
   }
-  
-  const subject = isPasswordReset ? 'Đặt lại mật khẩu - Mã OTP' : 'Mã xác thực OTP';
-  const text = isPasswordReset
-    ? `Mã OTP để đặt lại mật khẩu của bạn là ${code}. Mã này sẽ hết hạn sau ${OTP_EXP_MIN} phút.`
-    : `Mã OTP của bạn là ${code}. Mã này sẽ hết hạn sau ${OTP_EXP_MIN} phút.`;
-    
-  await transporter.sendMail({
-    from: process.env.FROM_EMAIL || process.env.SMTP_USER,
-    to: email,
-    subject: subject,
-    text: text,
-  });
 }
 
 const genOtp = () => (Math.floor(100000 + Math.random() * 900000)).toString();
