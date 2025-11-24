@@ -39,7 +39,7 @@ async function sendOtpEmail(email, code, isPasswordReset = false) {
         Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email.
       </p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 35px 0;">
-      <small style="color: #aaa;">© 2025 Badminton App – Đặt sân nhanh, chơi liền tay!</small>
+      <small style="color: #aaa;">© 2025 Badminton App</small>
     </div>
   `;
 
@@ -285,6 +285,13 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Sai email hoặc mật khẩu' });
     }
 
+    // 👉 KIỂM TRA STATUS BỊ KHÓA
+    if (user.status === 'lock') {
+      return res.status(403).json({
+        message: 'Tài khoản đang bị tạm khóa. Vui lòng liên hệ hỗ trợ.'
+      });
+    }
+
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ message: 'Sai email hoặc mật khẩu' });
 
@@ -296,19 +303,23 @@ exports.login = async (req, res) => {
 
     // Ghi log đăng nhập
     try {
-      const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+      const ipAddress =
+        req.ip ||
+        req.connection.remoteAddress ||
+        req.headers['x-forwarded-for'] ||
+        'unknown';
+
       const userAgent = req.headers['user-agent'] || 'unknown';
-      
+
       await LoginLog.create({
         userId: user._id,
         email: user.email,
         role: user.role,
         loginAt: new Date(),
-        ipAddress: ipAddress,
-        userAgent: userAgent,
+        ipAddress,
+        userAgent,
       });
     } catch (logError) {
-      // Không làm gián đoạn quá trình đăng nhập nếu ghi log thất bại
       console.error('Error logging login:', logError);
     }
 
