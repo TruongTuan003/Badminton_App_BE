@@ -67,12 +67,13 @@ router.get(
         console.error('Error logging Google OAuth login:', logError);
       }
 
-      // ⚡️ Redirect về custom URL cho Expo (phải có dạng exp:// hoặc https)
-      const redirectUrl = `exp://192.168.1.142:8081?token=${token}`;
+      // ⚡️ Redirect về custom scheme cho standalone Expo app (thay 'bad2pro' bằng scheme của bạn)
+      // Format: scheme://host/path?params (ở đây dùng root path với query token)
+      const redirectUrl = `bad2pro://auth?token=${token}`;
       res.redirect(redirectUrl);
     } catch (error) {
       console.error('Google OAuth callback error:', error);
-      res.redirect('exp://192.168.1.142:8081?error=login_failed');
+      res.redirect('bad2pro://auth?error=login_failed');
     }
   }
 );
