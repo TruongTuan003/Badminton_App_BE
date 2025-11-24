@@ -10,7 +10,19 @@ exports.getMealsByDate = async (req, res) => {
     const meals = await MealSchedule.find({ userId, date })
       .populate("mealId", "name calories protein fat carbs image_url category");
 
-    res.json(meals);
+    // Format createdAt để hiển thị đúng giờ Việt Nam (UTC+7)
+    const formattedMeals = meals.map(meal => {
+      const mealObj = meal.toObject();
+      if (mealObj.createdAt) {
+        // Convert UTC time sang giờ Việt Nam (UTC+7)
+        const utcDate = new Date(mealObj.createdAt);
+        const vietnamTime = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000)); // Cộng 7 giờ
+        mealObj.createdAt = vietnamTime.toISOString();
+      }
+      return mealObj;
+    });
+
+    res.json(formattedMeals);
   } catch (err) {
     res.status(500).json({ message: "Lỗi lấy danh sách bữa ăn", error: err.message });
   }

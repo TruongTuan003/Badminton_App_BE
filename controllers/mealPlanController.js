@@ -245,8 +245,27 @@ exports.getActiveMealPlans = async (req, res) => {
 // 📍 User chọn meal plan - áp dụng vào lịch của user
 exports.applyMealPlanToUser = async (req, res) => {
   try {
-    const { mealPlanId, startDate } = req.body;
+    const { mealPlanId, startDate, replaceExisting } = req.body;
     const userId = req.user.sub;
+
+    // Log ngày giờ chính xác khi tạo thực đơn
+    const now = new Date();
+    const timestamp = now.toLocaleString('vi-VN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Ho_Chi_Minh'
+    });
+    
+    console.log(`📅 [${timestamp}] User ${userId} đang áp dụng meal plan:`, {
+      mealPlanId,
+      startDate,
+      replaceExisting: replaceExisting || false
+    });
 
     if (!startDate) {
       return res.status(400).json({ message: "Vui lòng chọn ngày bắt đầu" });
@@ -266,8 +285,26 @@ exports.applyMealPlanToUser = async (req, res) => {
         .json({ message: "Thực đơn này không còn hoạt động" });
     }
 
+    // Helper function: Format date thành YYYY-MM-DD (local time, không UTC)
+    const formatDateOnly = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
     // Tính ngày kết thúc dựa trên type
-    const start = new Date(startDate);
+    // Xử lý date để tránh timezone issue - parse theo local time
+    let start;
+    if (typeof startDate === 'string' && startDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Parse "YYYY-MM-DD" thành local date (không bị timezone)
+      const [year, month, day] = startDate.split('-').map(Number);
+      start = new Date(year, month - 1, day); // month - 1 vì Date month bắt đầu từ 0
+    } else {
+      start = new Date(startDate);
+    }
+    start.setHours(0, 0, 0, 0); // Đặt về 00:00:00 local time
+    
     let endDate = new Date(start);
     if (mealPlan.type === "weekly") {
       endDate.setDate(endDate.getDate() + 6);
@@ -277,14 +314,30 @@ exports.applyMealPlanToUser = async (req, res) => {
       // chỉ 1 ngày thôi
       endDate = new Date(start);
     }
-
-    // Xóa các meal schedule cũ trong khoảng thời gian
-    const startDateStr = start.toISOString().split("T")[0];
-    const endDateStr = endDate.toISOString().split("T")[0];
-    await MealSchedule.deleteMany({
-      userId,
-      date: { $gte: startDateStr, $lte: endDateStr },
-    });
+    endDate.setHours(23, 59, 59, 999); // Đặt về cuối ngày
+    
+    const startDateStr = formatDateOnly(start);
+    const endDateStr = formatDateOnly(endDate);
+    
+    // Chỉ xóa các meal schedule cũ nếu replaceExisting = true
+    if (replaceExisting) {
+      await MealSchedule.deleteMany({
+        userId,
+        date: { $gte: startDateStr, $lte: endDateStr },
+      });
+      console.log(`🗑️ Đã xóa thực đơn cũ từ ${startDateStr} đến ${endDateStr}`);
+    } else {
+      // Kiểm tra xem có thực đơn nào trong khoảng thời gian này không
+      const existingMeals = await MealSchedule.find({
+        userId,
+        date: { $gte: startDateStr, $lte: endDateStr },
+      });
+      
+      if (existingMeals.length > 0) {
+        console.log(`ℹ️ Phát hiện ${existingMeals.length} bữa ăn đã có trong khoảng thời gian này`);
+        // Không xóa, sẽ thêm vào
+      }
+    }
 
     // Map dayOfWeek/dayNumber sang ngày thực tế
     const mealSchedules = [];
@@ -323,8 +376,11 @@ exports.applyMealPlanToUser = async (req, res) => {
         console.warn("⚠️ Bỏ qua meal vì ngày không hợp lệ:", meal);
         continue;
       }
-
-      const dateStr = actualDate.toISOString().split("T")[0];
+      
+      // Đảm bảo actualDate là local time (không bị timezone)
+      actualDate.setHours(0, 0, 0, 0);
+      
+      const dateStr = formatDateOnly(actualDate);
 
       mealSchedules.push({
         userId,
@@ -332,16 +388,69 @@ exports.applyMealPlanToUser = async (req, res) => {
         meal_type: meal.mealType,
         date: dateStr,
         time: meal.time || undefined,
+        // createdAt sẽ được tự động set bởi model default: Date.now
       });
     }
 
-    await MealSchedule.insertMany(mealSchedules);
+    // Nếu không replace, kiểm tra và chỉ thêm meals chưa tồn tại
+    let mealsToInsert = [];
+    if (!replaceExisting) {
+      for (const mealSchedule of mealSchedules) {
+        const existing = await MealSchedule.findOne({
+          userId: mealSchedule.userId,
+          mealId: mealSchedule.mealId,
+          date: mealSchedule.date,
+          meal_type: mealSchedule.meal_type,
+        });
+        
+        if (!existing) {
+          mealsToInsert.push(mealSchedule);
+        } else {
+          console.log(`⏭️ Bỏ qua meal đã tồn tại: ${mealSchedule.date} - ${mealSchedule.meal_type}`);
+        }
+      }
+    } else {
+      mealsToInsert = mealSchedules;
+    }
 
-    res.json({
-      message: "Áp dụng thực đơn thành công",
-      count: mealSchedules.length,
+    let insertedCount = 0;
+    if (mealsToInsert.length > 0) {
+      await MealSchedule.insertMany(mealsToInsert);
+      insertedCount = mealsToInsert.length;
+    }
+
+    const finishTime = new Date().toLocaleString('vi-VN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Ho_Chi_Minh'
+    });
+
+    console.log(`✅ [${finishTime}] Đã áp dụng meal plan thành công:`, {
+      userId,
+      mealPlanId,
+      insertedCount,
+      total: mealSchedules.length,
+      skipped: replaceExisting ? 0 : (mealSchedules.length - insertedCount),
       startDate: startDateStr,
       endDate: endDateStr,
+      replaceExisting: replaceExisting || false
+    });
+
+    res.json({
+      message: replaceExisting 
+        ? "Áp dụng thực đơn thành công (đã ghi đè)" 
+        : "Áp dụng thực đơn thành công (đã thêm vào)",
+      count: insertedCount,
+      total: mealSchedules.length,
+      skipped: replaceExisting ? 0 : (mealSchedules.length - insertedCount),
+      startDate: startDateStr,
+      endDate: endDateStr,
+      timestamp: finishTime,
     });
   } catch (err) {
     res
