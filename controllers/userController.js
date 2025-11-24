@@ -5,6 +5,7 @@ const Meal = require('../models/Meal');
 const TrainingLog = require('../models/TrainingLog');
 const MealSchedule = require('../models/mealSchedule');
 const Schedule = require('../models/Schedule');
+const ScheduleDetail = require('../models/ScheduleDetail');
 const LoginLog = require('../models/LoginLog');
 const jwt = require('jsonwebtoken');
 
@@ -524,10 +525,11 @@ exports.getSystemStatistics = async (req, res) => {
     // Bữa ăn đã lên lịch
     const scheduledMeals = await MealSchedule.countDocuments({});
 
-    // Tỷ lệ hoàn thành (schedules completed / total schedules)
-    const totalSchedules = await Schedule.countDocuments({});
-    const completedSchedules = await Schedule.countDocuments({ status: 'completed' });
-    const completionRate = totalSchedules > 0 ? Math.round((completedSchedules / totalSchedules) * 100) : 0;
+    // Tỷ lệ hoàn thành (schedule details done / total schedule details)
+    // Tính dựa trên ScheduleDetail vì đây là đơn vị bài tập thực tế
+    const totalScheduleDetails = await ScheduleDetail.countDocuments({});
+    const completedScheduleDetails = await ScheduleDetail.countDocuments({ status: 'done' });
+    const completionRate = totalScheduleDetails > 0 ? Math.round((completedScheduleDetails / totalScheduleDetails) * 100) : 0;
 
     // Tính tăng trưởng so với tháng trước
     const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -570,13 +572,14 @@ exports.getSystemStatistics = async (req, res) => {
       ? Math.round(((mealsThisMonth - mealsLastMonth) / mealsLastMonth) * 100)
       : (mealsThisMonth > 0 ? 100 : 0);
 
-    const completionRateThisMonth = await Schedule.countDocuments({
+    // Tính tăng trưởng tỷ lệ hoàn thành dựa trên ScheduleDetail
+    const completionRateThisMonth = await ScheduleDetail.countDocuments({
       createdAt: { $gte: startOfCurrentMonth },
-      status: 'completed'
+      status: 'done'
     });
-    const completionRateLastMonth = await Schedule.countDocuments({
+    const completionRateLastMonth = await ScheduleDetail.countDocuments({
       createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
-      status: 'completed'
+      status: 'done'
     });
     const completionRateGrowth = completionRateLastMonth > 0
       ? Math.round(((completionRateThisMonth - completionRateLastMonth) / completionRateLastMonth) * 100)
