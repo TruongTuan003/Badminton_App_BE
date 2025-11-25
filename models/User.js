@@ -17,6 +17,10 @@ const userSchema = new Schema({
     default: [],
   },
   status: { type: String, required: true, default: 'pending', maxLength: 20 }, // pending | active
+  // Dữ liệu khảo sát cầu lông
+  badmintonExperience: { type: String, maxLength: 50 }, // beginner | under_6_months | 6_12_months | 1_2_years | over_2_years
+  badmintonLevel: { type: String, maxLength: 50 }, // beginner | intermediate | advanced
+  trainingPreference: { type: String, maxLength: 50 }, // singles | doubles | both
 }, {
   timestamps: true // tự động tạo createdAt và updatedAt
 });

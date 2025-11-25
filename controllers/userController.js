@@ -27,11 +27,15 @@ const createUserResponse = (user) => {
     weight: user.weight,
     goal: user.goal || [],
     createdAt: user.createdAt,
-    status: user.status
+    status: user.status,
+    // Dữ liệu khảo sát cầu lông
+    badmintonExperience: user.badmintonExperience,
+    badmintonLevel: user.badmintonLevel,
+    trainingPreference: user.trainingPreference,
   };
 };
 
-const prepareUpdateData = ({ name, age, gender, height, weight, goals }) => {
+const prepareUpdateData = ({ name, age, gender, height, weight, goals, badmintonExperience, badmintonLevel, trainingPreference }) => {
   const updateData = {};
   
   if (name !== undefined) updateData.name = name;
@@ -40,6 +44,10 @@ const prepareUpdateData = ({ name, age, gender, height, weight, goals }) => {
   if (height !== undefined) updateData.height = Number(height);
   if (weight !== undefined) updateData.weight = Number(weight);
   if (goals !== undefined) updateData.goal = Array.isArray(goals) ? goals : [goals];
+  // Dữ liệu khảo sát cầu lông
+  if (badmintonExperience !== undefined) updateData.badmintonExperience = badmintonExperience;
+  if (badmintonLevel !== undefined) updateData.badmintonLevel = badmintonLevel;
+  if (trainingPreference !== undefined) updateData.trainingPreference = trainingPreference;
   
   return updateData;
 };
@@ -62,8 +70,25 @@ exports.getUserProfile = async (req, res) => {
 
 exports.updateUserProfile = async (req, res) => {
   try {
+    // Cho phép lấy userId từ body hoặc từ JWT token
+    let userId = req.user?.sub;
+    if (req.body.userId) {
+      // Nếu có userId trong body, kiểm tra quyền truy cập
+      const requestedUserId = req.body.userId;
+      // Chỉ cho phép nếu userId trong body trùng với userId trong token (user tự cập nhật)
+      // hoặc user là admin
+      if (req.user.role !== 'admin' && requestedUserId !== userId) {
+        return res.status(403).json({ 
+          message: 'Bạn không có quyền cập nhật thông tin người dùng này' 
+        });
+      }
+      userId = requestedUserId;
+    }
     
-    const userId = req.user.sub;
+    if (!userId) {
+      return res.status(401).json({ message: 'Không xác định được người dùng' });
+    }
+    
     const user = await User.findById(userId);
     
     if (!user) {
@@ -84,10 +109,27 @@ exports.updateUserProfile = async (req, res) => {
     
     await user.save();
     
-    return res.json({ 
+    // Tạo token mới nếu cần (cho trường hợp đăng ký mới)
+    let token = null;
+    if (req.body.userId && !req.user) {
+      const jwt = require('jsonwebtoken');
+      token = jwt.sign(
+        { sub: user._id, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+    }
+    
+    const response = { 
       message: 'Cập nhật thông tin thành công',
       user: createUserResponse(user)
-    });
+    };
+    
+    if (token) {
+      response.token = token;
+    }
+    
+    return res.json(response);
   } catch (error) {
     return handleError(res, error, 'Lỗi khi cập nhật thông tin');
   }
