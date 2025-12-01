@@ -131,12 +131,29 @@ exports.createMealPlan = async (req, res) => {
     }
     
     // Chuẩn hóa goals thành array
-    const goalsArray = goals ? (Array.isArray(goals) ? goals : [goals]) : (Array.isArray(goal) ? goal : [goal]);
+    let goalsArray = goals ? (Array.isArray(goals) ? goals : [goals]) : (Array.isArray(goal) ? goal : [goal]);
+    
+    // Map goals để đảm bảo đúng enum values
+    const goalMapping = {
+      "Quản lý hình thể và sức khỏe": "Quản lí hình thể và sức khỏe",
+      "Quản lí hình thể và sức khỏe": "Quản lí hình thể và sức khỏe",
+      "Nâng cao kỹ năng cầu lông": "Nâng cao kỹ năng cầu lông",
+      "Cải thiện thể chất": "Cải thiện thể chất"
+    };
+    
+    // Normalize goals để đảm bảo đúng enum values
+    goalsArray = goalsArray.map(g => {
+      const normalized = goalMapping[g] || g;
+      if (!["Nâng cao kỹ năng cầu lông", "Cải thiện thể chất", "Quản lí hình thể và sức khỏe"].includes(normalized)) {
+        console.warn(`⚠️ Goal không hợp lệ: ${g}, giữ nguyên để xem lỗi validation`);
+      }
+      return normalized;
+    });
     
     // Lấy goal đầu tiên để tạo meal plan và prompt AI
     const primaryGoal = goalsArray[0];
     
-    console.log('🟢 Dữ liệu nhận được từ FE:', { goals: goalsArray, primaryGoal, type });
+    console.log('🟢 Dữ liệu nhận được từ FE:', { originalGoals: goals || goal, goals: goalsArray, primaryGoal, type });
 
     // 1️⃣ Sinh danh sách món ăn từ Gemini - dùng tất cả goals để AI hiểu rõ hơn
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });

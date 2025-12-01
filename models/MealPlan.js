@@ -10,7 +10,7 @@ const mealPlanSchema = new mongoose.Schema({
   }, // Tuần hoặc tháng
   goals: { 
     type: [String], 
-    enum: ["Nâng cao kỹ năng cầu lông", "Cải thiện thể chất", "Quản lí hình thể và sức khỏe"], 
+    enum: ["Nâng cao kỹ năng cầu lông", "Cải thiện thể chất", "Quản lí hình thể và sức khỏe", "Quản lý hình thể và sức khỏe"], 
     required: true,
     validate: {
       validator: function(v) {
