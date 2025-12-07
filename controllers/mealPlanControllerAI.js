@@ -86,7 +86,7 @@ async function uploadToCloudinary(imageUrl, mealName) {
 async function generateMealDetails(mealName, goal, retry = 0) {
   const MAX_RETRY = 2;
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
     const prompt = `
 Bạn là chuyên gia dinh dưỡng. Cho biết thông tin món "${mealName}" cho mục tiêu "${goal}".
 Trả về JSON hợp lệ:
@@ -156,7 +156,7 @@ exports.createMealPlan = async (req, res) => {
     console.log('🟢 Dữ liệu nhận được từ FE:', { originalGoals: goals || goal, goals: goalsArray, primaryGoal, type });
 
     // 1️⃣ Sinh danh sách món ăn từ Gemini - dùng tất cả goals để AI hiểu rõ hơn
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
     const goalsString = goalsArray.join(', ');
     const result = await model.generateContent(promptGenerateMealPlan(goalsString, type));
     const json = JSON.parse(result.response.text().match(/\{[\s\S]*\}/)[0]);
